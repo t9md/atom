@@ -602,8 +602,12 @@ class Pane extends Model
   promptToSaveItem: (item, options={}) ->
     return true unless item.shouldPromptToSave?(options)
 
-    uri = getItemURI(item)
-    return true unless uri?
+    if typeof item.getURI is 'function'
+      uri = item.getURI()
+    else if typeof item.getUri is 'function'
+      uri = item.getUri()
+    else
+      return true
 
     saveDialog = (saveButtonText, saveFn, message) =>
       chosen = @applicationDelegate.confirm

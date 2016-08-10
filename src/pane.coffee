@@ -788,7 +788,7 @@ class Pane extends Model
   # * `params` (optional) {Object} with the following keys:
   #   * `items` (optional) {Array} of items to add to the new pane.
   #   * `copyActiveItem` (optional) {Boolean} true will copy the active item into the new split pane
-  #   * `moveActiveIem` (optional) {Boolean} true will move active item into the new split pane
+  #   * `moveActiveItem` (optional) {Boolean} true will move active item into the new split pane
   #
   # Returns the new {Pane}.
   splitDown: (params) ->

@@ -66,13 +66,15 @@ class Pane extends Model
     itemsToBeSerialized = compact(@items.map((item) -> item if typeof item.serialize is 'function'))
     itemStackIndices = (itemsToBeSerialized.indexOf(item) for item in @itemStack when typeof item.serialize is 'function')
 
-    deserializer: 'Pane'
-    id: @id
-    items: itemsToBeSerialized.map((item) -> item.serialize())
-    itemStackIndices: itemStackIndices
-    activeItemURI: activeItemURI
-    focused: @focused
-    flexScale: @flexScale
+    {
+      deserializer: 'Pane'
+      @id,
+      items: itemsToBeSerialized.map((item) -> item.serialize())
+      itemStackIndices: itemStackIndices
+      activeItemURI,
+      @focused,
+      @flexScale,
+    }
 
   getParent: -> @parent
 
@@ -813,37 +815,31 @@ class Pane extends Model
     newPane.activate()
     newPane
 
-  # If the parent is a horizontal axis, returns its first child if it is a pane;
-  # otherwise returns this pane.
-  findLeftmostSibling: ->
-    if @parent.orientation is 'horizontal' and isPane(child = first(@parent.children))
+  findSubling: (orientation, firstOrLastFn) ->
+    if @parent.orientation is orientation and isPane(child = firstOrLastFn(@parent.children))
       child
     else
       this
+
+  # If the parent is a horizontal axis, returns its first child if it is a pane;
+  # otherwise returns this pane.
+  findLeftmostSibling: -> @findSubling('horizontal', first)
 
   # If the parent is a horizontal axis, returns its last child if it is a pane;
   # otherwise returns a new pane created by splitting this pane rightward.
   findOrCreateRightmostSibling: ->
-    if @parent.orientation is 'horizontal' and isPane(child = last(@parent.children))
-      child
-    else
-      @splitRight()
+    child = @findSubling('horizontal', last)
+    if child is this then child else @splitRight()
 
   # If the parent is a vertical axis, returns its first child if it is a pane;
   # otherwise returns this pane.
-  findTopmostSibling: ->
-    if @parent.orientation is 'vertical' and isPane(child = first(@parent.children))
-      child
-    else
-      this
+  findTopmostSibling: -> @findSubling('vertical', first)
 
   # If the parent is a vertical axis, returns its last child if it is a pane;
   # otherwise returns a new pane created by splitting this pane bottomward.
   findOrCreateBottommostSibling: ->
-    if @parent.orientation is 'vertical' and isPane(child = last(@parent.children))
-      child
-    else
-      @splitDown()
+    child = @findSubling('vertical', last)
+    if child is this then child else @splitDown()
 
   close: ->
     @destroy() if @confirmClose()

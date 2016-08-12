@@ -1,9 +1,8 @@
 Grim = require 'grim'
-{find, compact, extend, last, first, remove} = require 'underscore-plus'
+{find, compact, extend, last, first, remove, isFunction} = require 'underscore-plus'
 {CompositeDisposable, Emitter} = require 'event-kit'
 Model = require './model'
 PaneAxis = require './pane-axis'
-TextEditor = require './text-editor'
 
 getItemURI = (item) ->
   if typeof item?.getURI is 'function'
@@ -34,14 +33,14 @@ class Pane extends Model
     activeItemURI ?= activeItemUri
     state.items = compact(items.map (itemState) -> deserializers.deserialize(itemState))
     state.activeItem = find state.items, (item) ->
-      if typeof item.getURI is 'function'
-        itemURI = item.getURI()
+      itemURI = item.getURI() if isFunction(item.getURI)
       itemURI is activeItemURI
-    new Pane(extend(state, {
+    options = {
       deserializerManager: deserializers,
       notificationManager: notifications,
       config, applicationDelegate
-    }))
+    }
+    new Pane(extend(state, options))
 
   constructor: (params) ->
     super
@@ -62,7 +61,7 @@ class Pane extends Model
     @setFlexScale(params?.flexScale ? 1)
 
   serialize: ->
-    if typeof @activeItem?.getURI is 'function'
+    if isFunction(@activeItem?.getURI)
       activeItemURI = @activeItem.getURI()
     itemsToBeSerialized = compact(@items.map((item) -> item if typeof item.serialize is 'function'))
     itemStackIndices = (itemsToBeSerialized.indexOf(item) for item in @itemStack when typeof item.serialize is 'function')
@@ -325,7 +324,7 @@ class Pane extends Model
 
   # Return an {TextEditor} if the pane item is an {TextEditor}, or null otherwise.
   getActiveEditor: ->
-    @activeItem if @activeItem instanceof TextEditor
+    @activeItem if atom.workspace.isTextEditor(@activeItem)
 
   # Public: Return the item at the given index.
   #
@@ -511,10 +510,9 @@ class Pane extends Model
   #
   # Returns an {Array} of added items.
   addItems: (items, index=@getActiveItemIndex() + 1) ->
-    items = items.filter (item) => not (item in @items)
-    @addItem(item, {index: index + i}) for item, i in items
-    items
-
+    newItems = items.filter (item) => not @hasItem(item)
+    @addItem(item, {index: index + i}) for item, i in newItems
+    newItems
 
   removeItem: (item, moved) ->
     index = @items.indexOf(item)
@@ -522,7 +520,9 @@ class Pane extends Model
 
     @clearPendingItem() if @isPendingItem(item)
     @removeItemFromStack(item)
-    @emitter.emit 'will-remove-item', {item, index, destroyed: not moved, moved}
+    destroyed = if moved then false else true
+
+    @emitter.emit 'will-remove-item', {item, index, destroyed, moved}
     @unsubscribeFromItem(item)
 
     if item is @activeItem
@@ -533,7 +533,7 @@ class Pane extends Model
       else
         @activatePreviousItem()
     @items.splice(index, 1)
-    @emitter.emit 'did-remove-item', {item, index, destroyed: not moved, moved}
+    @emitter.emit 'did-remove-item', {item, index, destroyed, moved}
     @container?.didDestroyPaneItem({item, index, pane: this}) unless moved
     @destroy() if @items.length is 0 and @config.get('core.destroyEmptyPanes')
 
@@ -602,9 +602,9 @@ class Pane extends Model
   promptToSaveItem: (item, options={}) ->
     return true unless item.shouldPromptToSave?(options)
 
-    if typeof item.getURI is 'function'
+    if isFunction(item.getURI)
       uri = item.getURI()
-    else if typeof item.getUri is 'function'
+    else if isFunction(item.getUri)
       uri = item.getUri()
     else
       return true

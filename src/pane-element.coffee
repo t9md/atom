@@ -68,11 +68,8 @@ class PaneElement extends HTMLElement
   activated: ->
     @focus()
 
-  activeStatusChanged: (active) ->
-    if active
-      @classList.add('active')
-    else
-      @classList.remove('active')
+  activeStatusChanged: (isActive) ->
+    @classList.toggle('active', isActive)
 
   activeItemChanged: (item) ->
     delete @dataset.activeItemName
@@ -111,9 +108,8 @@ class PaneElement extends HTMLElement
       @inlineDisplayStyles.set(itemView, inlineDisplayStyle) if inlineDisplayStyle?
       itemView.style.display = 'none'
 
-  itemRemoved: ({item, index, destroyed}) ->
-    if viewToRemove = @views.getView(item)
-      viewToRemove.remove()
+  itemRemoved: ({item}) ->
+    @views.getView(item)?.remove()
 
   paneDestroyed: ->
     @subscriptions.dispose()

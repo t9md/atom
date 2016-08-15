@@ -17,36 +17,21 @@ class PaneContainerElement extends HTMLElement
     focusedElement = document.activeElement if @hasFocus()
     @firstChild?.remove()
     if root?
-      view = @views.getView(root)
-      @appendChild(view)
+      @appendChild(@views.getView(root))
       focusedElement?.focus()
 
   hasFocus: ->
     this is document.activeElement or @contains(document.activeElement)
 
-  focusPaneViewAbove: ->
-    @nearestPaneInDirection('above')?.focus()
+  focusPaneViewAbove: -> @nearestPaneInDirection('above')?.focus()
+  focusPaneViewBelow: -> @nearestPaneInDirection('below')?.focus()
+  focusPaneViewOnLeft: -> @nearestPaneInDirection('left')?.focus()
+  focusPaneViewOnRight: -> @nearestPaneInDirection('right')?.focus()
 
-  focusPaneViewBelow: ->
-    @nearestPaneInDirection('below')?.focus()
-
-  focusPaneViewOnLeft: ->
-    @nearestPaneInDirection('left')?.focus()
-
-  focusPaneViewOnRight: ->
-    @nearestPaneInDirection('right')?.focus()
-
-  moveActiveItemToPaneAbove: (params) ->
-    @moveActiveItemToNearestPaneInDirection('above', params)
-
-  moveActiveItemToPaneBelow: (params) ->
-    @moveActiveItemToNearestPaneInDirection('below', params)
-
-  moveActiveItemToPaneOnLeft: (params) ->
-    @moveActiveItemToNearestPaneInDirection('left', params)
-
-  moveActiveItemToPaneOnRight: (params) ->
-    @moveActiveItemToNearestPaneInDirection('right', params)
+  moveActiveItemToPaneAbove: (params) -> @moveActiveItemToNearestPaneInDirection('above', params)
+  moveActiveItemToPaneBelow: (params) -> @moveActiveItemToNearestPaneInDirection('below', params)
+  moveActiveItemToPaneOnLeft: (params) -> @moveActiveItemToNearestPaneInDirection('left', params)
+  moveActiveItemToPaneOnRight: (params) -> @moveActiveItemToNearestPaneInDirection('right', params)
 
   moveActiveItemToNearestPaneInDirection: (direction, params) ->
     destPane = @nearestPaneInDirection(direction)?.getModel()
@@ -87,10 +72,11 @@ class PaneContainerElement extends HTMLElement
 
   boundingBoxForPaneView: (paneView) ->
     boundingBox = paneView.getBoundingClientRect()
+    {left, top, right, bottom} = paneView.getBoundingClientRect()
 
-    left: {x: boundingBox.left, y: boundingBox.top}
-    right: {x: boundingBox.right, y: boundingBox.top}
-    top: {x: boundingBox.left, y: boundingBox.top}
-    bottom: {x: boundingBox.left, y: boundingBox.bottom}
+    left: {x: left, y: top}
+    right: {x: right, y: top}
+    top: {x: left, y: top}
+    bottom: {x: left, y: bottom}
 
 module.exports = PaneContainerElement = document.registerElement 'atom-pane-container', prototype: PaneContainerElement.prototype

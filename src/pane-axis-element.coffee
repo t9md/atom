@@ -1,5 +1,5 @@
 {CompositeDisposable} = require 'event-kit'
-PaneResizeHandleElement = require './pane-resize-handle-element'
+PaneResizeHandleElement = require './pane-resize-handle-element' # [t9md] unused but removing this line make spec fail why?
 
 class PaneAxisElement extends HTMLElement
   attachedCallback: ->
@@ -24,12 +24,12 @@ class PaneAxisElement extends HTMLElement
     this
 
   subscribeToModel: ->
-    subscriptions = new CompositeDisposable
-    subscriptions.add @model.onDidAddChild(@childAdded.bind(this))
-    subscriptions.add @model.onDidRemoveChild(@childRemoved.bind(this))
-    subscriptions.add @model.onDidReplaceChild(@childReplaced.bind(this))
-    subscriptions.add @model.observeFlexScale(@flexScaleChanged.bind(this))
-    subscriptions
+    new CompositeDisposable(
+      @model.onDidAddChild(@childAdded.bind(this)),
+      @model.onDidRemoveChild(@childRemoved.bind(this)),
+      @model.onDidReplaceChild(@childReplaced.bind(this)),
+      @model.observeFlexScale(@flexScaleChanged.bind(this))
+    )
 
   isPaneResizeHandleElement: (element) ->
     element?.nodeName.toLowerCase() is 'atom-pane-resize-handle'
@@ -37,26 +37,26 @@ class PaneAxisElement extends HTMLElement
   childAdded: ({child, index}) ->
     view = @views.getView(child)
     @insertBefore(view, @children[index * 2])
-
-    prevElement = view.previousSibling
-    # if previous element is not pane resize element, then insert new resize element
-    if prevElement? and not @isPaneResizeHandleElement(prevElement)
-      resizeHandle = document.createElement('atom-pane-resize-handle')
-      @insertBefore(resizeHandle, view)
-
-    nextElement = view.nextSibling
-    # if next element isnot resize element, then insert new resize element
-    if nextElement? and not @isPaneResizeHandleElement(nextElement)
-      resizeHandle = document.createElement('atom-pane-resize-handle')
-      @insertBefore(resizeHandle, nextElement)
+    @addPaneResizeHandleElementForView(view)
 
   childRemoved: ({child}) ->
     view = @views.getView(child)
-    siblingView = view.previousSibling
-    # make sure next sibling view is pane resize view
-    if siblingView? and @isPaneResizeHandleElement(siblingView)
-      siblingView.remove()
+    @removePaneResizeHandleElementForView(view)
     view.remove()
+
+  addPaneResizeHandleElementForView: (view) ->
+    insertPaneResizeHandleElementForView = (element, referenceNode) =>
+      if element? and not @isPaneResizeHandleElement(element)
+        resizeHandle = document.createElement('atom-pane-resize-handle')
+        @insertBefore(resizeHandle, referenceNode)
+
+    insertPaneResizeHandleElementForView(view.previousSibling, view)
+    insertPaneResizeHandleElementForView(view.nextSibling, view.nextSibling)
+
+  removePaneResizeHandleElementForView: ({previousSibling}) ->
+    if previousSibling? and @isPaneResizeHandleElement(previousSibling)
+      previousSibling.remove()
+
 
   childReplaced: ({index, oldChild, newChild}) ->
     focusedElement = document.activeElement if @hasFocus()

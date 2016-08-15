@@ -88,10 +88,12 @@ class PaneAxis extends Model
     total = 0
     total += child.getFlexScale() for child in @children
 
-    needTotal = @children.length
+    flexRatio = @children.length / total
     # set every child's flex scale by the ratio
-    for child in @children
-      child.setFlexScale(needTotal * child.getFlexScale() / total)
+    child.setFlexScale(flexRatio * child.getFlexScale()) for child in @children
+
+  hasChild: (child) ->
+    child in @children
 
   removeChild: (child, replacing=false) ->
     index = @children.indexOf(child)

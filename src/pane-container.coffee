@@ -5,6 +5,16 @@ Model = require './model'
 Pane = require './pane'
 ItemRegistry = require './item-registry'
 
+isPane = (obj) ->
+  obj instanceof Pane
+
+getValidIndexForArray = (index, array) ->
+  maxIndex = array.length - 1
+  switch
+    when index < 0 then maxIndex
+    when index > maxIndex then 0
+    else index
+
 module.exports =
 class PaneContainer extends Model
   serializationVersion: 1
@@ -94,11 +104,11 @@ class PaneContainer extends Model
     @root.setParent(this)
     @root.setContainer(this)
     @emitter.emit 'did-change-root', @root
-    if not @getActivePane()? and @root instanceof Pane
+    if not @getActivePane()? and isPane(@root)
       @setActivePane(@root)
 
   replaceChild: (oldChild, newChild) ->
-    throw new Error("Replacing non-existent child") if oldChild isnt @root
+    throw new Error("Replacing non-existent child") unless oldChild is @root
     @setRoot(newChild)
 
   getPanes: ->
@@ -110,12 +120,16 @@ class PaneContainer extends Model
   getActivePane: ->
     @activePane
 
-  setActivePane: (activePane) ->
-    if activePane isnt @activePane
-      unless activePane in @getPanes()
-        throw new Error("Setting active pane that is not present in pane container")
+  hasPane: (pane) ->
+    pane in @getPanes()
 
-      @activePane = activePane
+  isActivePane: (pane) ->
+    pane is @activePane
+
+  setActivePane: (pane) ->
+    unless @isActivePane(pane)
+      throw new Error("Setting active pane that is not present in pane container") unless @hasPane(pane)
+      @activePane = pane
       @emitter.emit 'did-change-active-pane', @activePane
     @activePane
 
@@ -126,7 +140,7 @@ class PaneContainer extends Model
     find @getPanes(), (pane) -> pane.itemForURI(uri)?
 
   paneForItem: (item) ->
-    find @getPanes(), (pane) -> item in pane.getItems()
+    find @getPanes(), (pane) -> pane.hasItem(item)
 
   saveAll: ->
     pane.saveItems() for pane in @getPanes()
@@ -143,26 +157,22 @@ class PaneContainer extends Model
 
     allSaved
 
-  activateNextPane: ->
+  activatePaneInDirection: (direction) ->
     panes = @getPanes()
     if panes.length > 1
       currentIndex = panes.indexOf(@activePane)
-      nextIndex = (currentIndex + 1) % panes.length
-      panes[nextIndex].activate()
+      newActiveIndex = switch direction
+        when 'next' then currentIndex + 1
+        when 'previous' then currentIndex - 1
+      newActiveIndex = getValidIndexForArray(newActiveIndex, panes)
+      panes[newActiveIndex].activate()
       true
     else
       false
 
-  activatePreviousPane: ->
-    panes = @getPanes()
-    if panes.length > 1
-      currentIndex = panes.indexOf(@activePane)
-      previousIndex = currentIndex - 1
-      previousIndex = panes.length - 1 if previousIndex < 0
-      panes[previousIndex].activate()
-      true
-    else
-      false
+  activateNextPane: -> @activatePaneInDirection('next')
+
+  activatePreviousPane: -> @activatePaneInDirection('previous')
 
   moveActiveItemToPane: (destPane) ->
     item = @activePane.getActiveItem()
@@ -174,7 +184,7 @@ class PaneContainer extends Model
     destPane.activateItem(item)
 
   destroyEmptyPanes: ->
-    pane.destroy() for pane in @getPanes() when pane.items.length is 0
+    pane.destroy() for pane in @getPanes() when pane.isEmpty()
     return
 
   willDestroyPaneItem: (event) ->

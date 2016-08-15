@@ -13,6 +13,13 @@ getItemURI = (item) ->
 isPane = (obj) ->
   obj instanceof Pane
 
+getValidIndexForArray = (index, array) ->
+  maxIndex = array.length - 1
+  switch
+    when index < 0 then maxIndex
+    when index > maxIndex then 0
+    else index
+
 # Extended: A container for presenting content in the center of the workspace.
 # Panes can contain multiple items, one of which is *active* at a given time.
 # The view corresponding to the active item is displayed in the interface. In
@@ -299,11 +306,13 @@ class Pane extends Model
   # Returns a pane item.
   getActiveItem: -> @activeItem
 
-  setActiveItem: (activeItem, options) ->
+  isActiveItem: (item) -> item is @activeItem
+
+  setActiveItem: (item, options) ->
     {modifyStack} = options if options?
-    unless activeItem is @activeItem
-      @addItemToStack(activeItem) unless modifyStack is false
-      @activeItem = activeItem
+    unless @isActiveItem(item)
+      @addItemToStack(item) unless modifyStack is false
+      @activeItem = item
       @emitter.emit 'did-change-active-item', @activeItem
     @activeItem
 
@@ -372,28 +381,19 @@ class Pane extends Model
   activateNextItem: ->
     return if @isEmpty()
     index = @getActiveItemIndex() + 1
-    @activateItemAtIndex(@getValidIndex(index))
+    @activateItemAtIndex(getValidIndexForArray(index, @items))
 
   # Public: Makes the previous item active.
   activatePreviousItem: ->
     return if @isEmpty()
     index = @getActiveItemIndex() - 1
-    @activateItemAtIndex(@getValidIndex(index))
+    @activateItemAtIndex(getValidIndexForArray(index, @items))
 
   activateLastItem: ->
     @activateItemAtIndex(@getLastItemIndex())
 
   isValidItemIndex: (index) ->
     index in [0..@getLastItemIndex()]
-
-  getValidIndex: (index) ->
-    lastItemIndex = @getLastItemIndex()
-    if index < 0
-      lastItemIndex
-    else if index > lastItemIndex
-      0
-    else
-      index
 
   # Public: Move the active tab to the right.
   moveItemRight: ->

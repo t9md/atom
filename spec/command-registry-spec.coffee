@@ -5,15 +5,15 @@ describe "CommandRegistry", ->
   [registry, parent, child, grandchild] = []
 
   beforeEach ->
-    parent = document.createElement("div")
-    child = document.createElement("div")
-    grandchild = document.createElement("div")
-    parent.classList.add('parent')
-    child.classList.add('child')
-    grandchild.classList.add('grandchild')
-    child.appendChild(grandchild)
-    parent.appendChild(child)
-    document.querySelector('#jasmine-content').appendChild(parent)
+    div = (className) ->
+      element = document.createElement("div")
+      element.classList.add(className)
+      element
+
+    document.querySelector('#jasmine-content')
+      .appendChild(parent = div("parent"))
+      .appendChild(child = div("child"))
+      .appendChild(grandchild = div("grandchild"))
 
     registry = new CommandRegistry
     registry.attach(parent)
@@ -38,20 +38,29 @@ describe "CommandRegistry", ->
     it "invokes callbacks with selectors matching ancestors of the target", ->
       calls = []
 
+      ensureEvent = (event, {type, target, currentTarget}) ->
+        expect(event.type).toBe type
+        expect(event.eventPhase).toBe Event.BUBBLING_PHASE
+        expect(event.target).toBe target
+        expect(event.currentTarget).toBe currentTarget
+
+      registry.add '.grandchild', 'command', (event) ->
+        expect(this).toBe grandchild
+        ensureEvent event, {type: 'command', target: grandchild, currentTarget: grandchild}
+        calls.push('grandchild')
+
       registry.add '.child', 'command', (event) ->
         expect(this).toBe child
-        expect(event.target).toBe grandchild
-        expect(event.currentTarget).toBe child
+        ensureEvent event, {type: 'command', target: grandchild, currentTarget: child}
         calls.push('child')
 
       registry.add '.parent', 'command', (event) ->
         expect(this).toBe parent
-        expect(event.target).toBe grandchild
-        expect(event.currentTarget).toBe parent
+        ensureEvent event, {type: 'command', target: grandchild, currentTarget: parent}
         calls.push('parent')
 
       grandchild.dispatchEvent(new CustomEvent('command', bubbles: true))
-      expect(calls).toEqual ['child', 'parent']
+      expect(calls).toEqual ['grandchild', 'child', 'parent']
 
     it "invokes inline listeners prior to listeners applied via selectors", ->
       calls = []
@@ -133,19 +142,14 @@ describe "CommandRegistry", ->
       expect(syntheticEvent.nonStandardProperty).toBe 'testing'
 
     it "allows listeners to be removed via a disposable returned by ::add", ->
-      calls = []
-
       disposable1 = registry.add '.parent', 'command', -> calls.push('parent')
       disposable2 = registry.add '.child', 'command', -> calls.push('child')
+      dispatch = ->
+        grandchild.dispatchEvent(new CustomEvent('command', bubbles: true))
 
-      disposable1.dispose()
-      grandchild.dispatchEvent(new CustomEvent('command', bubbles: true))
-      expect(calls).toEqual ['child']
-
-      calls = []
-      disposable2.dispose()
-      grandchild.dispatchEvent(new CustomEvent('command', bubbles: true))
-      expect(calls).toEqual []
+      calls = [];                        dispatch(); expect(calls).toEqual ['child', 'parent']
+      calls = []; disposable1.dispose(); dispatch(); expect(calls).toEqual ['child']
+      calls = []; disposable2.dispose(); dispatch(); expect(calls).toEqual []
 
     it "allows multiple commands to be registered under one selector when called with an object", ->
       calls = []
@@ -155,8 +159,8 @@ describe "CommandRegistry", ->
         'command-2': -> calls.push('command-2')
 
       grandchild.dispatchEvent(new CustomEvent('command-1', bubbles: true))
+      expect(calls).toEqual ['command-1']
       grandchild.dispatchEvent(new CustomEvent('command-2', bubbles: true))
-
       expect(calls).toEqual ['command-1', 'command-2']
 
       calls = []
@@ -228,8 +232,7 @@ describe "CommandRegistry", ->
       registry.add child, 'namespace:inline-command-2', ->
 
       commands = registry.findCommands(target: grandchild)
-      nonJqueryCommands = _.reject commands, (cmd) -> cmd.jQuery
-      expect(nonJqueryCommands).toEqual [
+      expect(commands).toEqual [
         {name: 'namespace:inline-command-1', displayName: 'Namespace: Inline Command 1'}
         {name: 'namespace:command-3', displayName: 'Namespace: Command 3'}
         {name: 'namespace:inline-command-2', displayName: 'Namespace: Inline Command 2'}
@@ -265,7 +268,7 @@ describe "CommandRegistry", ->
       snapshot = registry.getSnapshot()
       registry.add '.grandchild', 'namespace:command-3', ->
 
-      expect(registry.findCommands(target: grandchild)[0..2]).toEqual [
+      expect(registry.findCommands(target: grandchild)).toEqual [
         {name: 'namespace:command-3', displayName: 'Namespace: Command 3'}
         {name: 'namespace:command-2', displayName: 'Namespace: Command 2'}
         {name: 'namespace:command-1', displayName: 'Namespace: Command 1'}
@@ -273,7 +276,7 @@ describe "CommandRegistry", ->
 
       registry.restoreSnapshot(snapshot)
 
-      expect(registry.findCommands(target: grandchild)[0..1]).toEqual [
+      expect(registry.findCommands(target: grandchild)).toEqual [
         {name: 'namespace:command-2', displayName: 'Namespace: Command 2'}
         {name: 'namespace:command-1', displayName: 'Namespace: Command 1'}
       ]
@@ -281,7 +284,9 @@ describe "CommandRegistry", ->
       registry.add '.grandchild', 'namespace:command-3', ->
       registry.restoreSnapshot(snapshot)
 
-      expect(registry.findCommands(target: grandchild)[0..1]).toEqual [
+      # Why need [0..1] slicing in original code comment-outed below.
+      # expect(registry.findCommands(target: grandchild)[0..1]).toEqual [
+      expect(registry.findCommands(target: grandchild)).toEqual [
         {name: 'namespace:command-2', displayName: 'Namespace: Command 2'}
         {name: 'namespace:command-1', displayName: 'Namespace: Command 1'}
       ]

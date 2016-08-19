@@ -14,6 +14,12 @@ Panel = require './panel'
 PanelContainer = require './panel-container'
 Task = require './task'
 
+getItemURI = (item) ->
+  if typeof item?.getURI is 'function'
+    item.getURI()
+  else if typeof item?.getUri is 'function'
+    item.getUri()
+
 # Essential: Represents the state of the user interface for the entire window.
 # An instance of this class is available via the `atom.workspace` global.
 #
@@ -431,7 +437,7 @@ class Workspace extends Model
     split = options.split
     uri = @project.resolvePath(uri)
 
-    if not atom.config.get('core.allowPendingPaneItems')
+    unless atom.config.get('core.allowPendingPaneItems')
       options.pending = false
 
     # Avoid adding URLs as recent documents to work-around this Spotlight crash:
@@ -441,16 +447,11 @@ class Workspace extends Model
 
     pane = @paneContainer.paneForURI(uri) if searchAllPanes
     pane ?= switch split
-      when 'left'
-        @getActivePane().findLeftmostSibling()
-      when 'right'
-        @getActivePane().findOrCreateRightmostSibling()
-      when 'up'
-        @getActivePane().findTopmostSibling()
-      when 'down'
-        @getActivePane().findOrCreateBottommostSibling()
-      else
-        @getActivePane()
+      when 'left' then @getActivePane().findLeftmostSibling()
+      when 'right' then @getActivePane().findOrCreateRightmostSibling()
+      when 'up' then @getActivePane().findTopmostSibling()
+      when 'down' then @getActivePane().findOrCreateBottommostSibling()
+      else @getActivePane()
 
     @openURIInPane(uri, pane, options)
 
@@ -772,12 +773,7 @@ class Workspace extends Model
 
   # Adds the destroyed item's uri to the list of items to reopen.
   didDestroyPaneItem: ({item}) =>
-    if typeof item.getURI is 'function'
-      uri = item.getURI()
-    else if typeof item.getUri is 'function'
-      uri = item.getUri()
-
-    if uri?
+    if uri = getItemURI(item)
       @destroyedItemURIs.push(uri)
 
   # Called by Model superclass when destroyed

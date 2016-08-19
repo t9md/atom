@@ -149,20 +149,18 @@ class CommandRegistry
     commandNames = new Set
     commands = []
     currentTarget = target
-    loop
-      for name, listeners of @inlineListenersByCommandName
-        if listeners.has(currentTarget) and not commandNames.has(name)
-          commandNames.add(name)
-          commands.push({name, displayName: _.humanizeEventName(name)})
+    addCommands = (name) ->
+      unless commandNames.has(name)
+        commandNames.add(name)
+        commands.push({name, displayName: _.humanizeEventName(name)})
 
-      for commandName, listeners of @selectorBasedListenersByCommandName
-        for listener in listeners
-          if currentTarget.webkitMatchesSelector?(listener.selector)
-            unless commandNames.has(commandName)
-              commandNames.add(commandName)
-              commands.push
-                name: commandName
-                displayName: _.humanizeEventName(commandName)
+    loop
+      for name, listeners of @inlineListenersByCommandName when listeners.has(currentTarget)
+        addCommands(name)
+
+      for name, listeners of @selectorBasedListenersByCommandName when currentTarget.webkitMatchesSelector?
+        if listeners.some((listener) -> currentTarget.webkitMatchesSelector(listener.selector))
+          addCommands(name)
 
       break if currentTarget is window
       currentTarget = currentTarget.parentNode ? window
@@ -214,38 +212,44 @@ class CommandRegistry
     immediatePropagationStopped = false
     matched = false
     currentTarget = event.target
-    {preventDefault, stopPropagation, stopImmediatePropagation, abortKeyBinding} = event
 
-    dispatchedEvent = new CustomEvent(event.type, {bubbles: true, detail: event.detail})
-    Object.defineProperty dispatchedEvent, 'eventPhase', value: Event.BUBBLING_PHASE
-    Object.defineProperty dispatchedEvent, 'currentTarget', get: -> currentTarget
-    Object.defineProperty dispatchedEvent, 'target', value: currentTarget
-    Object.defineProperty dispatchedEvent, 'preventDefault', value: ->
-      event.preventDefault()
-    Object.defineProperty dispatchedEvent, 'stopPropagation', value: ->
+    stopPropagation = ->
       event.stopPropagation()
       propagationStopped = true
-    Object.defineProperty dispatchedEvent, 'stopImmediatePropagation', value: ->
+    stopImmediatePropagation = ->
       event.stopImmediatePropagation()
       propagationStopped = true
       immediatePropagationStopped = true
-    Object.defineProperty dispatchedEvent, 'abortKeyBinding', value: ->
-      event.abortKeyBinding?()
 
-    for key in Object.keys(event)
-      dispatchedEvent[key] = event[key]
+    commandName = event.type
+    dispatchedEvent = new CustomEvent(commandName, {bubbles: true, detail: event.detail})
+    Object.defineProperty(dispatchedEvent, 'eventPhase', value: Event.BUBBLING_PHASE)
+    Object.defineProperty(dispatchedEvent, 'currentTarget', get: -> currentTarget)
+    Object.defineProperty(dispatchedEvent, 'target', value: currentTarget)
+    Object.defineProperty(dispatchedEvent, 'preventDefault', value: -> event.preventDefault())
+    Object.defineProperty(dispatchedEvent, 'stopPropagation', value: stopPropagation)
+    Object.defineProperty(dispatchedEvent, 'stopImmediatePropagation', value: stopImmediatePropagation)
+    Object.defineProperty(dispatchedEvent, 'abortKeyBinding', value: -> event.abortKeyBinding?())
+
+    for own key, value of event
+      dispatchedEvent[key] = value
 
     @emitter.emit 'will-dispatch', dispatchedEvent
 
-    loop
-      listeners = @inlineListenersByCommandName[event.type]?.get(currentTarget) ? []
-      if currentTarget.webkitMatchesSelector?
-        selectorBasedListeners =
-          (@selectorBasedListenersByCommandName[event.type] ? [])
-            .filter (listener) -> currentTarget.webkitMatchesSelector(listener.selector)
-            .sort (a, b) -> a.compare(b)
-        listeners = selectorBasedListeners.concat(listeners)
+    getInlineListners = (commandName, target) =>
+      @inlineListenersByCommandName[commandName]?.get(target) ? []
 
+    getSelectorBasedListeners = (CommandName, target) =>
+      return [] unless target.webkitMatchesSelector?
+      (@selectorBasedListenersByCommandName[commandName] ? [])
+        .filter (listener) -> target.webkitMatchesSelector(listener.selector)
+        .sort (a, b) -> a.compare(b)
+
+    loop
+      listeners = [
+        getSelectorBasedListeners(commandName, currentTarget)...
+        getInlineListners(commandName, currentTarget)...
+      ]
       matched = true if listeners.length > 0
 
       # Call inline listeners first in reverse registration order,
